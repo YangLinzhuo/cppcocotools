@@ -7,6 +7,7 @@
 #include <map>
 #include <iostream>
 #include <vector>
+#include <set>
 #include <fstream>
 #include <chrono>
 #include <iterator>
@@ -79,7 +80,10 @@ void from_json(const json& j, Category& a) {
     }
 }
 
-COCO::COCO(std::string& annotation_file_path) {
+COCO::COCO(const std::string& annotation_file_path) {
+    if (annotation_file_path.empty()) {
+        return;
+    }
     fmt::print("[INFO] Loading annotations into memory...\n");
     auto start = std::chrono::high_resolution_clock::now();
     std::ifstream annotation_file(annotation_file_path);
@@ -154,56 +158,124 @@ void COCO::info() {
 
 std::vector<int64_t> COCO::getAllAnnIds() {
     std::vector<int64_t> ids;
-    for (auto& pair : this->annotations_map) {
-        ids.push_back(pair.first);
+    for (auto& pair : annotations_map) {
+        ids.emplace_back(pair.first);
     }
     return ids;
 }
+
+
+std::vector<int64_t> COCO::getAllCatIds() {
+    std::vector<int64_t> ids;
+    for (auto& pair : categories_map) {
+        ids.emplace_back(pair.first);
+    }
+    return ids;
+}
+
+
+std::vector<int64_t> COCO::getAllImgIds() {
+    std::vector<int64_t> ids;
+    for (auto& pair : images_map) {
+        ids.emplace_back(pair.first);
+    }
+    return ids;
+}
+
 
 std::vector<int64_t> COCO::getAnnIds(
         const std::vector<int64_t> &img_ids, const std::vector<int64_t> &cat_ids,
         const std::vector<float> &area_rng, int is_crowd
 ) {
 //    if img_ids.s == len(catIds) == len(areaRng) == 0:
-//    anns = self.dataset['annotations']
-    std::vector<int64_t> anns;
+//    ann_ids = self.dataset['annotations']
+    std::vector<int64_t> ann_ids;
     if (img_ids.empty() && cat_ids.empty() && area_rng.empty()) {
-        anns = this->getAllAnnIds();
+        ann_ids = this->getAllAnnIds();
     } else {
         if (!img_ids.empty()) {
             for (auto& img_id : img_ids) {
                 if (img2ann.find(img_id) != img2ann.end()) {
                     auto& img_anns = img2ann[img_id];
-                    anns.insert(anns.end(),
-                                img_anns.begin(),
-                                img_anns.end());
+                    ann_ids.insert(ann_ids.end(),
+                                   img_anns.begin(),
+                                   img_anns.end());
                 }
             }
         } else {
-            anns = this->getAllAnnIds();
+            ann_ids = this->getAllAnnIds();
         }
-        auto end = anns.end();
+        auto end = ann_ids.end();
         if (!cat_ids.empty()) {
-            end = std::remove_if(anns.begin(), end, [&cat_ids, this](int64_t id){
+            end = std::remove_if(ann_ids.begin(), end, [&cat_ids, this](int64_t id){
                 auto cat = annotations[annotations_map[id]].category_id;
                 return std::find(cat_ids.begin(), cat_ids.end(), cat) != cat_ids.end();
             });
         }
         if (!area_rng.empty()) {
-            end = std::remove_if(anns.begin(), end, [&area_rng, this](int64_t id){
+            end = std::remove_if(ann_ids.begin(), end, [&area_rng, this](int64_t id){
                 auto area = annotations[annotations_map[id]].area;
                 return area <= area_rng[0] || area >= area_rng[1];
             });
         }
-        anns.erase(end, anns.end());
+        ann_ids.erase(end, ann_ids.end());
     }
 
     if (is_crowd != -1) {
-        auto end = std::remove_if(anns.begin(), anns.end(), [this, is_crowd](int64_t id) {
+        auto end = std::remove_if(ann_ids.begin(), ann_ids.end(), [this, is_crowd](int64_t id) {
             auto crowd = annotations[annotations_map[id]].is_crowd;
             return crowd != is_crowd;
         });
-        anns.erase(end, anns.end());
+        ann_ids.erase(end, ann_ids.end());
     }
-    return anns;
+    return ann_ids;
+}
+
+
+std::vector<int64_t> COCO::getCatIds(const std::vector<std::string> &cat_names,
+                                     const std::vector<std::string> &super_category_names,
+                                     const std::vector<int64_t> &cat_ids) {
+    std::vector<int64_t> ids;
+    if (cat_names.empty() && super_category_names.empty() && cat_ids.empty()) {
+        ids = getAllCatIds();
+    } else {
+        ids = getAllCatIds();
+        auto end = ids.end();
+        if (!cat_names.empty()) {
+            end = std::remove_if(ids.begin(), end, [&cat_names, this](int64_t id){
+                auto& name = categories[categories_map[id]].name;
+                return std::find(cat_names.begin(), cat_names.end(), name) != cat_names.end();
+            });
+        }
+        if (!super_category_names.empty()) {
+            end = std::remove_if(ids.begin(), end, [&super_category_names, this](int64_t id) {
+                auto& name = categories[categories_map[id]].super_category;
+                return std::find(super_category_names.begin(), super_category_names.end(), name) != super_category_names.end();
+            });
+        }
+        if (!cat_ids.empty()) {
+            end = std::remove_if(ids.begin(), end, [&cat_ids, this](int64_t id){
+                auto cat = categories[categories_map[id]].id;
+                return std::find(cat_ids.begin(), cat_ids.end(), cat) != cat_ids.end();
+            });
+        }
+        ids.erase(end, ids.end());
+    }
+    return ids;
+}
+
+
+std::vector<int64_t> COCO::getImgIds(const std::vector<int64_t> &img_ids, const std::vector<int64_t> &cat_ids) {
+    std::vector<int64_t> ids;
+    if (img_ids.empty() && cat_ids.empty()) {
+        ids = getAllImgIds();
+    } else {
+        std::set<int64_t> tmp;
+        for (auto id : cat_ids) {
+            auto& imgs_ids = cat2img[id];
+            tmp.insert(imgs_ids.begin(), imgs_ids.end());
+        }
+        ids.insert(ids.end(), tmp.begin(), tmp.end());
+    }
+    return ids;
 }

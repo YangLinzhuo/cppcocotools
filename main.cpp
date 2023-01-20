@@ -17,7 +17,7 @@ int main() {
     coco.info();
     std::vector<int64_t> img_ids = { 397133, 37777, 252219, 87038, 174482, 403385, 6818, 480985, 458054, 331352 };
     auto start = std::chrono::high_resolution_clock::now();
-    auto ann_ids = coco.getAnnIds(img_ids);
+    auto ann_ids = coco.getImgIds();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<float> duration = end - start;
     std::chrono::microseconds ms = std::chrono::duration_cast<std::chrono::microseconds>(duration);

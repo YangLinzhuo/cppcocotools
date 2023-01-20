@@ -55,11 +55,16 @@ void from_json(const json& j, Category& a);
 
 class COCO {
 public:
-    explicit COCO(std::string& annotation_file_path);
+    explicit COCO(const std::string& annotation_file_path = "");
     void createIndex();
     void info();
     std::vector<int64_t> getAnnIds(const std::vector<int64_t> &img_ids = {}, const std::vector<int64_t> &cat_ids = {},
                                    const std::vector<float> &area_rng = {}, int is_crowd = -1);
+    std::vector<int64_t> getCatIds(const std::vector<std::string> &cat_names = {},
+                                   const std::vector<std::string> &super_category_names = {},
+                                   const std::vector<int64_t> &cat_ids = {});
+    std::vector<int64_t> getImgIds(const std::vector<int64_t> &img_ids = {}, const std::vector<int64_t> &cat_ids = {});
+
 private:
     json dataset;
     std::vector<Annotation> annotations;
@@ -72,6 +77,8 @@ private:
     std::map<int64_t, int64_t> categories_map;
 
     std::vector<int64_t> getAllAnnIds();
+    std::vector<int64_t> getAllCatIds();
+    std::vector<int64_t> getAllImgIds();
 };
 
 #endif //COCOTOOLS_COCO_H
