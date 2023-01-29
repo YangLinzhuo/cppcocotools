@@ -4,7 +4,7 @@
 #include "coco.h"
 #include <nlohmann/json.hpp>
 #include <string>
-#include <map>
+#include <set>
 #include <iostream>
 #include <vector>
 #include <set>
@@ -93,10 +93,10 @@ COCO::COCO(const std::string& annotation_file_path) {
     std::chrono::microseconds ms = std::chrono::duration_cast<std::chrono::microseconds>(duration);
 //    fmt::print("Done (t={:.2f}ms)\n", duration.count());
     fmt::print("Done (t={})\n", ms);
-    this->dataset = json::parse(annotation_file);
-    fmt::print("Dataset size: {}\n", this->dataset.size());
-//    fmt::print("Dataset info: {}", this->dataset["info"]);
-    std::cout << "Dataset info: " << this->dataset["info"] << std::endl;
+    dataset = json::parse(annotation_file);
+    fmt::print("Dataset size: {}\n", dataset.size());
+//    fmt::print("Dataset info: {}", dataset["info"]);
+    std::cout << "Dataset info: " << dataset["info"] << std::endl;
 }
 
 
@@ -104,40 +104,48 @@ void COCO::createIndex() {
     fmt::print("[INFO] Creating index...\n");
     auto start = std::chrono::high_resolution_clock::now();
 
-    if (this->dataset.contains("annotations")) {
+    if (dataset.contains("annotations")) {
         fmt::print("[INFO] Creating annotations index...\n");
         int64_t idx = 0;
-        for (auto& annotation : this->dataset["annotations"]) {
-            this->annotations.emplace_back(annotation);
-            this->annotations_map[annotation["id"]] = idx;
-            this->img2ann[annotation["image_id"]].emplace_back(annotation["id"]);
+        for (auto& annotation : dataset["annotations"]) {
+            annotations.emplace_back(annotation);
+            annotations_map[annotation["id"]] = idx;
+            img2ann[annotation["image_id"]].emplace_back(annotation["id"]);
             idx++;
+        }
+    } else if (!annotations.empty()) {
+        for (auto& ann : annotations) {
+            img2ann[ann.image_id].emplace_back(ann.id);
         }
     }
 
-    if (this->dataset.contains("images")) {
+    if (dataset.contains("images")) {
         fmt::print("[INFO] Creating images index...\n");
         int64_t idx = 0;
-        for (auto& image : this->dataset["images"]) {
-            this->images.emplace_back(image);
-            this->images_map[image["id"]] = idx;
+        for (auto& image : dataset["images"]) {
+            images.emplace_back(image);
+            images_map[image["id"]] = idx;
             idx++;
         }
     }
 
-    if (this->dataset.contains("categories")) {
+    if (dataset.contains("categories")) {
         fmt::print("[INFO] Creating categories index...\n");
         int64_t idx = 0;
-        for (auto& category : this->dataset["categories"]) {
-            this->categories.emplace_back(category);
-            this->categories_map[category["id"]] = idx;
+        for (auto& category : dataset["categories"]) {
+            categories.emplace_back(category);
+            categories_map[category["id"]] = idx;
             idx++;
         }
     }
 
-    if (this->dataset.contains("annotations") && this->dataset.contains("categories")) {
-        for (auto& annotation : this->dataset["annotations"]) {
-            this->cat2img[annotation["category_id"]].emplace_back(annotation["image_id"]);
+    if (dataset.contains("annotations") && dataset.contains("categories")) {
+        for (auto& annotation : dataset["annotations"]) {
+            cat2img[annotation["category_id"]].emplace_back(annotation["image_id"]);
+        }
+    } else if (!annotations.empty() and !categories.empty()) {
+        for (auto& ann : annotations) {
+            cat2img[ann.category_id].emplace_back(ann.image_id);
         }
     }
 
@@ -150,7 +158,7 @@ void COCO::createIndex() {
 
 
 void COCO::info() {
-    for (auto& [key, value] : this->dataset["info"].items())
+    for (auto& [key, value] : dataset["info"].items())
     {
         std::cout << key << ": " << value << std::endl;
     }
@@ -191,7 +199,7 @@ std::vector<int64_t> COCO::getAnnIds(
 //    ann_ids = self.dataset['annotations']
     std::vector<int64_t> ann_ids;
     if (img_ids.empty() && cat_ids.empty() && area_rng.empty()) {
-        ann_ids = this->getAllAnnIds();
+        ann_ids = getAllAnnIds();
     } else {
         if (!img_ids.empty()) {
             for (auto& img_id : img_ids) {
@@ -203,7 +211,7 @@ std::vector<int64_t> COCO::getAnnIds(
                 }
             }
         } else {
-            ann_ids = this->getAllAnnIds();
+            ann_ids = getAllAnnIds();
         }
         auto end = ann_ids.end();
         if (!cat_ids.empty()) {
@@ -278,4 +286,111 @@ std::vector<int64_t> COCO::getImgIds(const std::vector<int64_t> &img_ids, const 
         ids.insert(ids.end(), tmp.begin(), tmp.end());
     }
     return ids;
+}
+
+
+std::vector<Annotation> COCO::loadAnns(const std::vector<int64_t> &ann_ids) {
+    std::vector<Annotation> anns;
+    for (auto id : ann_ids) {
+        anns.emplace_back(annotations[annotations_map[id]]);
+    }
+    return anns;
+}
+
+
+std::vector<Category> COCO::loadCats(const std::vector<int64_t> &cat_ids) {
+    std::vector<Category> cats;
+    for (auto id : cat_ids) {
+        cats.emplace_back(categories[categories_map[id]]);
+    }
+    return cats;
+}
+
+
+std::vector<Image> COCO::loadImgs(const std::vector<int64_t> &img_ids) {
+    std::vector<Image> imgs;
+    for (auto id : img_ids) {
+        imgs.emplace_back(images[images_map[id]]);
+    }
+    return imgs;
+}
+
+
+bool COCO::checkImgIds(std::vector<int64_t> annsImgIds) {
+    std::set<int64_t> res_img_ids;
+    res_img_ids.insert(annsImgIds.begin(), annsImgIds.end());
+    std::vector<int64_t> img_ids = getAllImgIds();
+    std::set<int64_t> gt_img_ids;
+    gt_img_ids.insert(img_ids.begin(), img_ids.end());
+    std::set<int64_t> intersection;
+    std::set_intersection(res_img_ids.begin(), res_img_ids.end(),
+                          gt_img_ids.begin(), gt_img_ids.end(),
+                          std::inserter(intersection, intersection.begin()));
+    return res_img_ids == intersection;
+//    assert(is_equal, "Results do not correspond to current coco set");
+}
+
+
+COCO COCO::loadRes(const std::string resFile) {
+    COCO res = COCO();
+    // copy images related data
+    res.images = images;
+    res.images_map = images_map;
+    fmt::print("[INFO] Loading and preparing results...\n");
+    auto start = std::chrono::high_resolution_clock::now();
+    std::ifstream annotation_file(resFile);
+    json annotation_list = json::parse(annotation_file);
+    std::vector<Annotation>& anns = res.annotations;
+    for (auto& ann : annotation_list) {
+        anns.emplace_back(ann);
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float> duration = end - start;
+    std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    fmt::print("Get all anns Done (t={})\n", ms);
+    start = std::chrono::high_resolution_clock::now();
+    std::vector<int64_t> annsImgIds;
+    for (auto& ann : anns) {
+        annsImgIds.emplace_back(ann.image_id);
+    }
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    fmt::print("Get all ann ids Done (t={})\n", ms);
+    start = std::chrono::high_resolution_clock::now();
+    if (!checkImgIds(annsImgIds)) {
+        fmt::print("[ERROR] Results do not correspond to current coco set\n");
+        std::terminate();
+    }
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    fmt::print("Check img ids Done (t={})\n", ms);
+
+    start = std::chrono::high_resolution_clock::now();
+
+    res.categories = categories;
+    res.categories_map = categories_map;
+    std::map<int64_t, int64_t>& anns_map = res.annotations_map;
+    int64_t i = 0;
+    for (auto& ann : anns) {
+        auto& bb = ann.bbox;
+        float x1 = bb[0], x2 = bb[0] + bb[2], y1 = bb[1], y2 = bb[1] + bb[3];
+        ann.segmentation = {{x1, y1, x1, y2, x2, y2, x2, y1}};
+        ann.area = bb[2] * bb[3];
+        ann.id = i + 1;
+        ann.is_crowd = 0;
+        anns_map[i + 1] = i;
+        ++i;
+    }
+
+    end = std::chrono::high_resolution_clock::now();
+    duration = end - start;
+    ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    fmt::print("Compute anns info Done (t={})\n", ms);
+
+//    res.annotations = anns;
+//    res.annotations_map = anns_map;
+    res.createIndex();
+    return res;
 }

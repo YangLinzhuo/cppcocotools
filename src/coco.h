@@ -64,21 +64,27 @@ public:
                                    const std::vector<std::string> &super_category_names = {},
                                    const std::vector<int64_t> &cat_ids = {});
     std::vector<int64_t> getImgIds(const std::vector<int64_t> &img_ids = {}, const std::vector<int64_t> &cat_ids = {});
+    std::vector<Annotation> loadAnns(const std::vector<int64_t> &ann_ids = {});
+    std::vector<Category> loadCats(const std::vector<int64_t> &cat_ids = {});
+    std::vector<Image> loadImgs(const std::vector<int64_t> &img_ids = {});
+    void showAnns();    // TODO: implements function
+    COCO loadRes(const std::string resFile);
 
 private:
     json dataset;
     std::vector<Annotation> annotations;
     std::vector<Image> images;
     std::vector<Category> categories;
-    std::map<int64_t, std::vector<int64_t>> img2ann;
-    std::map<int64_t, std::vector<int64_t>> cat2img;
-    std::map<int64_t, int64_t> annotations_map;
-    std::map<int64_t, int64_t> images_map;
-    std::map<int64_t, int64_t> categories_map;
+    std::map<int64_t, std::vector<int64_t>> img2ann;    // real id -> real id
+    std::map<int64_t, std::vector<int64_t>> cat2img;    // real id -> real id
+    std::map<int64_t, int64_t> annotations_map; // real id -> logical id
+    std::map<int64_t, int64_t> images_map;  // real id -> logical id
+    std::map<int64_t, int64_t> categories_map;  // real id -> logical id
 
     std::vector<int64_t> getAllAnnIds();
     std::vector<int64_t> getAllCatIds();
     std::vector<int64_t> getAllImgIds();
+    bool checkImgIds(std::vector<int64_t> annsImgIds);
 };
 
 #endif //COCOTOOLS_COCO_H
