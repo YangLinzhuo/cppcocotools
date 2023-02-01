@@ -21,6 +21,7 @@ struct Annotation {
     std::vector<std::vector<float>> segmentation;
     float area;
     int is_crowd;
+    int ignore;
     int64_t image_id;
     std::vector<float> bbox;
     int64_t category_id;
@@ -68,7 +69,7 @@ public:
     std::vector<Category> loadCats(const std::vector<int64_t> &cat_ids = {});
     std::vector<Image> loadImgs(const std::vector<int64_t> &img_ids = {});
     void showAnns();    // TODO: implements function
-    COCO loadRes(const std::string resFile);
+    COCO loadRes(const std::string &resFile);
 
 private:
     json dataset;
@@ -84,7 +85,7 @@ private:
     std::vector<int64_t> getAllAnnIds();
     std::vector<int64_t> getAllCatIds();
     std::vector<int64_t> getAllImgIds();
-    bool checkImgIds(std::vector<int64_t> annsImgIds);
+    bool checkImgIds(const std::vector<int64_t> &annsImgIds);
 };
 
 #endif //COCOTOOLS_COCO_H

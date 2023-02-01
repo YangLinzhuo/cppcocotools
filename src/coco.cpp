@@ -21,7 +21,7 @@ using nlohmann::json;
 void to_json(json& j, const Annotation& a) {
     j = json{ {"segmentation", a.segmentation}, {"area", a.area}, {"is_crowd", a.is_crowd},
               {"image_id", a.image_id}, {"bbox", a.bbox}, {"category_id", a.category_id},
-              {"id", a.id} };
+              {"id", a.id}, {"ignore", a.ignore} };
 }
 
 void from_json(const json& j, Annotation& a) {
@@ -30,7 +30,7 @@ void from_json(const json& j, Annotation& a) {
 //        j.at("segmentation").get_to(a.segmentation);
 //    }
     j.contains("area") ? j.at("area").get_to(a.area) : a.area = -1.0;
-    j.contains("is_crowd") ? j.at("is_crowd").get_to(a.is_crowd) : a.is_crowd = -1;
+    j.contains("is_crowd") ? j.at("is_crowd").get_to(a.is_crowd) : a.is_crowd = 0;
     j.contains("image_id") ? j.at("image_id").get_to(a.image_id) : a.image_id = -1;
     if (j.contains("bbox")) {
 //        fmt::print("Get bbox.\n");
@@ -38,6 +38,7 @@ void from_json(const json& j, Annotation& a) {
     }
     j.contains("category_id") ? j.at("category_id").get_to(a.category_id) : a.category_id = -1;
     j.contains("id") ? j.at("id").get_to(a.id) : a.id = -1;
+    j.contains("ignore") ? j.at("ignore").get_to(a.ignore) : a.ignore = 0;
 }
 
 void to_json(json& j, const Image& a) {
@@ -316,7 +317,7 @@ std::vector<Image> COCO::loadImgs(const std::vector<int64_t> &img_ids) {
 }
 
 
-bool COCO::checkImgIds(std::vector<int64_t> annsImgIds) {
+bool COCO::checkImgIds(const std::vector<int64_t> &annsImgIds) {
     std::set<int64_t> res_img_ids;
     res_img_ids.insert(annsImgIds.begin(), annsImgIds.end());
     std::vector<int64_t> img_ids = getAllImgIds();
@@ -327,11 +328,10 @@ bool COCO::checkImgIds(std::vector<int64_t> annsImgIds) {
                           gt_img_ids.begin(), gt_img_ids.end(),
                           std::inserter(intersection, intersection.begin()));
     return res_img_ids == intersection;
-//    assert(is_equal, "Results do not correspond to current coco set");
 }
 
 
-COCO COCO::loadRes(const std::string resFile) {
+COCO COCO::loadRes(const std::string &resFile) {
     COCO res = COCO();
     // copy images related data
     res.images = images;

@@ -9,6 +9,6 @@ add_subdirectory(json EXCLUDE_FROM_ALL)
 add_subdirectory(fmt EXCLUDE_FROM_ALL)
 
 include_directories(src)
-add_executable(cocotools main.cpp src/coco.cpp)
+add_executable(cocotools main.cpp src/coco.cpp src/cocoeval.cpp)
 target_link_libraries(cocotools PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(cocotools PRIVATE fmt::fmt)
